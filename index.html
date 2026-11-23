@@ -33,6 +33,10 @@ main{max-width:1200px;margin:auto;padding:0 20px}
 .ph{aspect-ratio:1;background:var(--bg);cursor:zoom-in;position:relative}
 .ph img,.ph video{width:100%;height:100%;object-fit:cover;display:block}
 .ph video{pointer-events:none;background:#000}
+.card.sold .ph img,.card.sold .ph video{filter:grayscale(1);opacity:.45}
+.soldtag{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.soldtag span{background:#b91c1c;color:#fff;font-weight:700;letter-spacing:.08em;padding:4px 14px;border-radius:6px;transform:rotate(-12deg);font-size:14px}
+.btn:disabled{opacity:.5;cursor:not-allowed;background:transparent!important;color:var(--muted)!important;border-color:var(--line)!important}
 .play{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.65);color:#fff;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;pointer-events:none}
 #lb video{width:100%;max-height:75vh;display:block;background:#000}
 .err{display:flex;height:100%;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:12px;color:var(--muted);cursor:default}
@@ -104,7 +108,12 @@ const nat=(a,b)=>a.localeCompare(b,undefined,{numeric:true,sensitivity:"base"});
 const code=n=>String(n); // รหัส = ชื่อไฟล์ (ไม่รวมนามสกุล)
 const hash=t=>{let h=0;for(const c of t)h=(h*31+c.charCodeAt(0))>>>0;return h};
 const sel=new Map(); // folder -> Set of codes
-let CATALOG=[], active="ALL";
+let CATALOG=[], active="ALL", SOLD=new Set();
+/* รายชื่อปลาที่ขายแล้วอยู่ในไฟล์ sold.txt (บรรทัดละ 1 รหัส) */
+async function loadSold(){
+  try{const r=await fetch("sold.txt?t="+Date.now(),{cache:"no-store"});if(!r.ok)return;
+    (await r.text()).split(/[\n,]/).forEach(x=>{x=x.replace(/#.*/,"").trim().toLowerCase();if(x)SOLD.add(x)})}catch(e){}}
+const isSold=(l,it)=>SOLD.has(String(it.n).toLowerCase())||SOLD.has((l.folder+"/"+it.n).toLowerCase());
 
 function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1600)}
 function isSel(f,n){return sel.has(f)&&sel.get(f).has(n)}
@@ -192,10 +201,13 @@ function card(l,it){
     ph.appendChild(img);
   }
   ph.onclick=()=>openLb(l,it);
+  const sold=isSold(l,it);
+  if(sold){c.classList.add("sold");const t=document.createElement("div");t.className="soldtag";t.innerHTML="<span>SOLD OUT</span>";ph.appendChild(t)}
   const m=document.createElement("div");m.className="meta";
   m.innerHTML=`<span class="code">${code(n)}</span>`;
   const b=document.createElement("button");b.className="btn";b.textContent=isSel(l.folder,n)?"Selected ✓":"Select";
   b.setAttribute("aria-pressed",isSel(l.folder,n));
+  if(sold){b.textContent="Sold out";b.disabled=true}
   b.onclick=()=>{toggle(l.folder,n);const on=isSel(l.folder,n);c.classList.toggle("sel",on);b.textContent=on?"Selected ✓":"Select";b.setAttribute("aria-pressed",on)};
   m.appendChild(b);c.append(ph,m);return c}
 function toggle(f,n){
@@ -212,13 +224,13 @@ function clearAll(){sel.clear();render();$("#order").close();toast("Selection cl
 
 /* Lightbox */
 let lbCur=null;
-function openLb(l,it){lbCur={l,n:it.n};
+function openLb(l,it){lbCur={l,n:it.n,sold:isSold(l,it)};
   const im=$("#lbImg"),vd=$("#lbVid");
   if(it.video){im.hidden=true;vd.hidden=false;vd.src=src(l,it);vd.play().catch(()=>{})}
   else{vd.hidden=true;im.hidden=false;im.src=src(l,it)}
   $("#lbCap").textContent=`${l.title} ${code(it.n)}`;syncLb();$("#lb").showModal()}
-function syncLb(){const {l,n}=lbCur;const b=$("#lbSel");b.textContent=isSel(l.folder,n)?"Selected ✓":"Select";b.style.setProperty("--c",l.color)}
-$("#lbSel").onclick=()=>{toggle(lbCur.l.folder,lbCur.n);syncLb();
+function syncLb(){const {l,n}=lbCur;const b=$("#lbSel");const so=lbCur.sold;b.disabled=so;b.textContent=so?"Sold out":isSel(l.folder,n)?"Selected ✓":"Select";b.style.setProperty("--c",l.color)}
+$("#lbSel").onclick=()=>{if(lbCur.sold)return;toggle(lbCur.l.folder,lbCur.n);syncLb();
   const c=document.querySelector(`.card[data-f="${CSS.escape(lbCur.l.folder)}"][data-n="${CSS.escape(String(lbCur.n))}"]`);
   if(c){const on=isSel(lbCur.l.folder,lbCur.n);c.classList.toggle("sel",on);c.querySelector(".btn").textContent=on?"Selected ✓":"Select"}};
 $("#lbClose").onclick=()=>$("#lb").close();
@@ -248,7 +260,7 @@ document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest("di
   const main=$("#main"),repo=detectRepo();
   const fail=t=>{main.innerHTML=`<p class="msg">${t}</p>`};
   if(!repo)return fail("Catalog can’t load here. Open it from your GitHub Pages address (username.github.io/repo), or set GITHUB_REPO in index.html.");
-  try{CATALOG=buildCatalog(await fetchTree(repo))}
+  try{await loadSold();CATALOG=buildCatalog(await fetchTree(repo))}
   catch(e){return fail(e.message==="RATE"?"GitHub is limiting requests right now. Please try again in a few minutes.":"Couldn’t read the catalog from GitHub. Check that the repository is public.")}
   if(!CATALOG.length)return fail("No photo folders found yet. Add folders with images to the repository.");
   const want=new URLSearchParams(location.search).get("lot");
