@@ -1,0 +1,4 @@
+# ทดสอบ sold.txt
+H131
+H134, H133
+HM-FANCY SELECTIVE BETTA/H121 # ทดสอบแบบระบุโฟลเดอร์
