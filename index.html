@@ -74,6 +74,8 @@ aside h2{font:700 20px Fraunces,Georgia,serif;margin:0 0 4px}
 .li .th{width:62px;height:46px;border-radius:6px;object-fit:cover;background:#000;flex:none}
 .li div{flex:1;min-width:0}.li b{display:block}.li span{color:var(--muted);font-size:13px}
 .li button{border:0;background:none;color:var(--muted);font-size:22px;cursor:pointer;padding:4px 8px}
+.macts .pri{background:#1b2f4b;border-color:#1b2f4b;color:#fff;font-size:16px}
+@media (prefers-color-scheme:dark){.macts .pri{background:#3b5b86;border-color:#3b5b86}}
 .macts{display:flex;gap:8px}.macts button{flex:1;padding:11px;border-radius:8px;border:1.5px solid var(--line);background:transparent;color:var(--ink);font:600 14px Inter,sans-serif;cursor:pointer}
 .bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;gap:10px;z-index:10}
 .bar b{font-size:16px}
@@ -116,7 +118,7 @@ textarea{min-height:170px;font-family:ui-monospace,monospace}
 
 <dialog id="lb"><img id="lbImg" alt=""><video id="lbVid" controls playsinline hidden></video><div class="lbbar"><span id="lbCap"></span><span class="row" style="flex:none"><button class="btn fill" id="lbSel">Select</button><button class="btn ghost" style="color:#fff" id="lbClose">Close</button></span></div></dialog>
 
-<dialog id="ml"><div class="dlg"><h3><span>My list</span><small id="mn"></small></h3><div class="mlist" id="mlist"></div><div class="macts"><button id="mclr">Clear all</button><button id="mx">Close</button></div></div></dialog>
+<dialog id="ml"><div class="dlg"><h3><span>My list</span><small id="mn"></small></h3><div class="mlist" id="mlist"></div><div class="macts"><button class="pri" id="mcopy">Copy list</button></div><div class="macts"><button id="mclr">Clear all</button><button id="mx">Close</button></div></div></dialog>
 
 <script>
 /* ================= SETTINGS (ไม่ต้องแก้ก็ใช้ได้) =================
@@ -297,6 +299,14 @@ function buildList(){
       x.onclick=()=>{toggle(lot.folder,n);syncCard(lot.folder,n);if(!total())$("#ml").close()};
       d.append(th,t,x);l.appendChild(d)})});
   $("#mn").textContent=cnt+" selected"}
+function orderText(){
+  const lines=[];
+  CATALOG.forEach(l=>{if(sel.has(l.folder)){const ns=[...sel.get(l.folder)].sort(nat);lines.push(`${showBadge(l)?`${l.title} (${l.folder})`:l.title}: ${ns.map(code).join(", ")}`)}});
+  return lines.length?`Order inquiry — ${total()} fish\n\n${lines.join("\n")}`:""}
+async function copy(t){
+  try{await navigator.clipboard.writeText(t)}catch(e){const x=document.createElement("textarea");x.value=t;document.body.appendChild(x);x.select();document.execCommand("copy");x.remove()}}
+$("#mcopy").onclick=async()=>{const t=orderText();if(!t)return toast("Nothing selected");
+  await copy(t);const b=$("#mcopy");b.textContent="Copied ✓";toast("Order list copied");setTimeout(()=>b.textContent="Copy list",1800)};
 $("#fab").onclick=()=>{buildList();$("#ml").showModal()};
 $("#mx").onclick=()=>$("#ml").close();
 $("#mclr").onclick=clearAll;
